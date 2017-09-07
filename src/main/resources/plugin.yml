@@ -1,0 +1,5 @@
+name: ${project.name}
+version: ${project.version}
+author: Hugmanrique
+load: STARTUP
+main: me.hugmanrique.noworldsave.Main
