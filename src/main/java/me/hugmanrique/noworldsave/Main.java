@@ -28,7 +28,6 @@ public class Main extends JavaPlugin {
         saveDefaultConfig();
 
         boolean restore = getConfig().getBoolean("restore");
-        boolean changed = getConfig().getBoolean("changed");
 
         ClassPool pool = ClassPool.getDefault();
         CtClass providerClass;
@@ -48,9 +47,7 @@ public class Main extends JavaPlugin {
             return;
         }
 
-        if (!changed) {
-            patch(providerClass, saveMethod, nopMethod);
-        }
+        patch(providerClass, saveMethod, nopMethod);
     }
 
     private void patch(CtClass providerClass, CtMethod saveMethod, CtMethod nopMethod) {
@@ -66,9 +63,6 @@ public class Main extends JavaPlugin {
             e.printStackTrace();
             severe("Couldn't replace NMS chunk saving methods, look above for more details/stacktraces");
         }
-
-        getConfig().set("changed", true);
-        saveConfig();
 
         log("Replaced NMS chunk saving methods");
     }

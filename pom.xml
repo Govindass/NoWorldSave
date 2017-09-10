@@ -6,7 +6,7 @@
 
     <groupId>me.hugmanrique</groupId>
     <artifactId>noworldsave</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
 
     <name>NoWorldSave</name>
     <description>(Truly) Disable Minecraft server's chunk saving</description>
