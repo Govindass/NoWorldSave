@@ -1,17 +1,13 @@
 package me.hugmanrique.noworldsave;
 
+import javassist.*;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.objectweb.asm.ClassReader;
-import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.Type;
 
-import java.io.IOException;
-import java.lang.reflect.Method;
+import java.util.Arrays;
 
 public class Main extends JavaPlugin {
     private static String PROVIDER_CLASS;
-    private static String CHUNK_CLASS;
 
     static {
         String version = null;
@@ -23,67 +19,85 @@ public class Main extends JavaPlugin {
         }
 
         if (version != null) {
-            PROVIDER_CLASS = "net/minecraft/server/" + version + "/ChunkProviderServer";
-            CHUNK_CLASS = "net.minecraft.server." + version + ".Chunk";
+            PROVIDER_CLASS = "net.minecraft.server." + version + ".ChunkProviderServer";
         }
     }
 
     @Override
     public void onEnable() {
+        saveDefaultConfig();
+
+        boolean restore = getConfig().getBoolean("restore");
+        boolean changed = getConfig().getBoolean("changed");
+
+        ClassPool pool = ClassPool.getDefault();
+        CtClass providerClass;
+
+        try {
+            providerClass = pool.get(PROVIDER_CLASS);
+        } catch (NotFoundException e) {
+            e.printStackTrace();
+            return;
+        }
+
+        CtMethod saveMethod = getMethod(providerClass, "saveChunk");
+        CtMethod nopMethod = getMethod(providerClass, "saveChunkNOP");
+
+        if (restore) {
+            restore(providerClass, saveMethod, nopMethod);
+            return;
+        }
+
+        if (!changed) {
+            patch(providerClass, saveMethod, nopMethod);
+        }
+    }
+
+    private void patch(CtClass providerClass, CtMethod saveMethod, CtMethod nopMethod) {
         log("Patching original NMS chunk code...");
 
-        boolean result = patch();
+        try {
+            clearMethod(saveMethod);
+            clearMethod(nopMethod);
 
-        if (result) {
-            log("Replaced NMS chunk saving methods");
-        } else {
-            log("Couldn't replace NMS chunk saving methods, look above for more details/stacktraces");
+            // Replace runtime class
+            providerClass.toClass();
+        } catch (CannotCompileException e) {
+            e.printStackTrace();
+            severe("Couldn't replace NMS chunk saving methods, look above for more details/stacktraces");
         }
+
+        getConfig().set("changed", true);
+        saveConfig();
+
+        log("Replaced NMS chunk saving methods");
     }
 
-    public boolean patch() {
-        Class<?> clazz;
-        Class<?> chunkClass;
+    private void restore(CtClass providerClass, CtMethod saveMethod, CtMethod nopMethod) {
+        log("Restoring default NMS chunk saving. Make sure to remove the plugin!");
 
         try {
-            clazz = Class.forName(PROVIDER_CLASS.replace("/", "."));
-            chunkClass = Class.forName(CHUNK_CLASS);
-        } catch (ClassNotFoundException e) {
+            saveMethod.setBody("if(this.chunkLoader!=null){ try{ chunk.setLastSaved(this.world.getTime()); this.chunkLoader.a(this.world,chunk); } catch(IOExceptionioexception){ ChunkProviderServer.b.error(\"Couldn'tsavechunk\",ioexception); } catch(ExceptionWorldConflictexceptionworldconflict){ ChunkProviderServer.b.error(\"Couldn'tsavechunk;alreadyinusebyanotherinstanceofMinecraft?\",exceptionworldconflict); } }");
+            nopMethod.setBody("if (this.chunkLoader != null) { try { this.chunkLoader.b(this.world, chunk); } catch (Exception exception) { ChunkProviderServer.b.error(\"Couldn't save entities\", exception); } }");
+
+            providerClass.toClass();
+        } catch (CannotCompileException e) {
             e.printStackTrace();
-            return false;
+            severe("Couldn't restore default NMS chunk saving implementation");
         }
 
-        try {
-            Method saveMethod = clazz.getMethod("saveChunk", chunkClass);
-            Method saveNopMethod = clazz.getMethod("saveChunkNOP", chunkClass);
-
-            disableMethod(saveMethod);
-            disableMethod(saveNopMethod);
-        } catch (NoSuchMethodException e) {
-            e.printStackTrace();
-            return false;
-        }
-
-        return true;
+        log("Restored default NMS chunk saving. You can now remove this plugin");
     }
 
-    private byte[] disableMethod(Method method) {
-        Class<?> clazz = method.getDeclaringClass();
-        ClassReader reader;
+    private CtMethod getMethod(CtClass ctClass, String name) {
+        return Arrays.stream(ctClass.getMethods())
+                .filter(method -> method.getName().equals(name))
+                .findAny()
+                .orElse(null);
+    }
 
-        try {
-            reader = new ClassReader(clazz.getResourceAsStream(clazz.getSimpleName() + ".class"));
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
-
-        // Passing the reader to the writer allows internal optimizations
-        ClassWriter writer = new ClassWriter(reader, 0);
-
-        reader.accept(new SaveRemoverMethod(writer, method.getName(), Type.getMethodDescriptor(method)), 0);
-
-        // New code
-        return writer.toByteArray();
+    private void clearMethod(CtMethod method) throws CannotCompileException {
+        method.setBody("{}");
     }
 
     private void log(String message) {

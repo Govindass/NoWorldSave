@@ -1,0 +1,5 @@
+# Restore NMS chunk saving
+restore: false
+
+# Internal variable
+changed: false
