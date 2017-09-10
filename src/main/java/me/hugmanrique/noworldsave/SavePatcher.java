@@ -1,9 +1,9 @@
 package me.hugmanrique.noworldsave;
 
-import jdk.internal.org.objectweb.asm.Type;
 import org.bukkit.Bukkit;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Type;
 
 import java.io.IOException;
 import java.lang.reflect.Method;

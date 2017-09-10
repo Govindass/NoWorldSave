@@ -1,8 +1,8 @@
 package me.hugmanrique.noworldsave;
 
-import jdk.internal.org.objectweb.asm.Opcodes;
 import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.Opcodes;
 
 public class ReplaceWithEmptyBody extends MethodVisitor {
     private final MethodVisitor target;

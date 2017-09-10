@@ -1,10 +1,6 @@
 package me.hugmanrique.noworldsave;
 
-import jdk.internal.org.objectweb.asm.Opcodes;
-import jdk.internal.org.objectweb.asm.Type;
-import org.objectweb.asm.ClassVisitor;
-import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.MethodVisitor;
+import org.objectweb.asm.*;
 
 public class SaveRemoverMethod extends ClassVisitor {
     private final String hotMethodName;
