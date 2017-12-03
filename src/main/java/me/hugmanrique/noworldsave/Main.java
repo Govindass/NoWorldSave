@@ -1,41 +1,22 @@
 package me.hugmanrique.noworldsave;
 
 import javassist.*;
-import org.bukkit.Bukkit;
+import me.hugmanrique.noworldsave.providers.NMSProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Arrays;
 
 public class Main extends JavaPlugin {
-    private static String PROVIDER_CLASS;
-
-    static {
-        String version = null;
-
-        try {
-            version = Bukkit.getServer().getClass().getPackage().getName().replace(".", ",").split(",")[3];
-        } catch (ArrayIndexOutOfBoundsException e) {
-            severe("Running custom NMS version, couldn't patch NMS classes");
-        }
-
-        if (version != null) {
-            PROVIDER_CLASS = "net.minecraft.server." + version + ".ChunkProviderServer";
-        }
-    }
+    private static final Provider PROVIDER = new NMSProvider();
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
 
         boolean restore = getConfig().getBoolean("restore");
+        CtClass providerClass = getProviderClass();
 
-        ClassPool pool = ClassPool.getDefault();
-        CtClass providerClass;
-
-        try {
-            providerClass = pool.get(PROVIDER_CLASS);
-        } catch (NotFoundException e) {
-            e.printStackTrace();
+        if (providerClass == null) {
             return;
         }
 
@@ -44,10 +25,30 @@ public class Main extends JavaPlugin {
 
         if (restore) {
             restore(providerClass, saveMethod, nopMethod);
-            return;
+        } else {
+            patch(providerClass, saveMethod, nopMethod);
+        }
+    }
+
+    private CtClass getProviderClass() {
+        String className;
+
+        try {
+            className = PROVIDER.getClassName();
+        } catch (IllegalStateException e) {
+            severe("Running custom NMS version, couldn't patch NMS classes");
+            return null;
         }
 
-        patch(providerClass, saveMethod, nopMethod);
+        ClassPool pool = ClassPool.getDefault();
+
+        try {
+            return pool.get(className);
+        } catch (NotFoundException e) {
+            e.printStackTrace();
+        }
+
+        return null;
     }
 
     private void patch(CtClass providerClass, CtMethod saveMethod, CtMethod nopMethod) {
@@ -71,8 +72,8 @@ public class Main extends JavaPlugin {
         log("Restoring default NMS chunk saving. Make sure to remove the plugin!");
 
         try {
-            saveMethod.setBody("if(this.chunkLoader!=null){ try{ chunk.setLastSaved(this.world.getTime()); this.chunkLoader.a(this.world,chunk); } catch(IOExceptionioexception){ ChunkProviderServer.b.error(\"Couldn'tsavechunk\",ioexception); } catch(ExceptionWorldConflictexceptionworldconflict){ ChunkProviderServer.b.error(\"Couldn'tsavechunk;alreadyinusebyanotherinstanceofMinecraft?\",exceptionworldconflict); } }");
-            nopMethod.setBody("if (this.chunkLoader != null) { try { this.chunkLoader.b(this.world, chunk); } catch (Exception exception) { ChunkProviderServer.b.error(\"Couldn't save entities\", exception); } }");
+            saveMethod.setBody(PROVIDER.getSaveMethodBody());
+            nopMethod.setBody(PROVIDER.getNOPMethodBody());
 
             providerClass.toClass();
         } catch (CannotCompileException e) {
@@ -98,7 +99,7 @@ public class Main extends JavaPlugin {
         getLogger().info(message);
     }
 
-    private static void severe(String message) {
-        Bukkit.getLogger().severe(message);
+    private void severe(String message) {
+        getLogger().severe(message);
     }
 }
